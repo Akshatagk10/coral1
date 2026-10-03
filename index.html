@@ -1,0 +1,42 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ReefWatch</title>
+<style>
+:root{--bg:#0b1d26;--card:#12303d;--ink:#e8f3f4;--mut:#8fb0b8;--ok:#3ddc97;--warn:#ffb84d;--bad:#ff5d73;--ac:#4cc9f0}
+@media(prefers-color-scheme:light){:root{--bg:#eef6f7;--card:#fff;--ink:#0b2530;--mut:#4b6b75}}
+body{margin:0;font:15px system-ui,sans-serif;background:var(--bg);color:var(--ink)}header{display:flex;gap:12px;align-items:center;padding:14px 24px;flex-wrap:wrap}
+h1{font-size:20px;margin:0;flex:1}button{background:var(--ac);color:#04212b;border:0;border-radius:8px;padding:8px 14px;font-weight:600;cursor:pointer}button.g{background:transparent;color:var(--ink);border:1px solid var(--mut)}
+main{display:grid;grid-template-columns:2fr 1fr;gap:16px;padding:0 24px 24px}@media(max-width:900px){main{grid-template-columns:1fr}}
+.c{background:var(--card);border-radius:12px;padding:16px;overflow-x:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:7px 6px;border-bottom:1px solid #8883;white-space:nowrap}
+tr.s{cursor:pointer}tr.s:hover{background:#8881}.bar{height:8px;border-radius:4px;background:#8883;min-width:70px}.bar i{display:block;height:100%;border-radius:4px}
+.b{padding:3px 9px;border-radius:99px;font-weight:700;font-size:12px;display:inline-flex;gap:6px;align-items:center}.live{background:#3ddc9728;color:var(--ok)}.sim{background:#ffb84d2e;color:var(--warn)}.snap{background:#4cc9f02e;color:var(--ac)}
+.dot{width:8px;height:8px;border-radius:50%;background:currentColor;animation:p 1.6s infinite}@keyframes p{50%{opacity:.25;transform:scale(1.6)}}
+[data-motion=off] *{animation:none!important;transition:none!important}@media(prefers-reduced-motion:reduce){:root:not([data-motion=on]) *{animation:none!important;transition:none!important}}
+#toast{position:fixed;right:20px;bottom:20px;max-width:380px;padding:12px 16px;border-radius:10px;color:#111;display:none;font-weight:600;z-index:9}.mut{color:var(--mut)}h3{margin:0 0 8px}
+</style></head><body><header><h1>🪸 ReefWatch <span class="mut" style="font-weight:400;font-size:13px">mortality-risk &amp; restoration priority</span></h1><span id="upd" class="mut"></span>
+<button id="rf">Refresh live data</button><button class="g" id="mo">Reduce motion: OS</button></header><div id="mode" style="padding:0 24px 10px;display:flex;gap:8px;flex-wrap:wrap"></div>
+<main><section class="c"><h3>Funding priority ranking</h3><table><thead><tr><th>#</th><th>Reef</th><th>Data</th><th>Risk</th><th>DHW</th><th>Value</th><th>Priority</th></tr></thead><tbody id="tb"></tbody></table></section>
+<aside><section class="c" id="det"><h3>Reef detail</h3><p class="mut">Select a reef.</p></section><section class="c" id="gr" style="margin-top:16px"></section></aside></main><div id="toast" role="status"></div>
+<script>
+const $=s=>document.querySelector(s),col=r=>r>=.75?'var(--bad)':r>=.5?'var(--warn)':r>=.25?'var(--ac)':'var(--ok)';let D=null;
+const badge=s=>s.source==='live'?`<span class="b live"><i class="dot"></i>LIVE</span>`:s.source==='snapshot'?`<span class="b snap">🗂 SNAPSHOT</span>`:`<span class="b sim">⚠ SIMULATED</span>`;
+const src=s=>s.source==='simulated'?('synthetic data, as of '+s.as_of):((s.source==='snapshot'?'local snapshot from '+s.host+' (downloaded '+(s.fetched_at||'?')+')':s.host)+' · latest obs '+s.latest);
+const f=(x,d=3)=>x==null?'n/a':(+x).toPrecision(d);
+function toast(m,ok){const t=$('#toast');t.textContent=m;t.style.background=ok?'var(--ok)':'var(--warn)';t.style.display='block';clearTimeout(t._h);t._h=setTimeout(()=>t.style.display='none',9000)}
+function render(){const c={live:0,snapshot:0,simulated:0};D.sites.forEach(s=>c[s.source]++);const sn=D.sites.find(s=>s.source==='snapshot');
+$('#mode').innerHTML=(c.simulated?`<span class="b sim">⚠ ${c.simulated} reef(s) SIMULATED: numbers are not real</span>`:'')+(c.snapshot?`<span class="b snap">🗂 ${c.snapshot} reef(s) from LOCAL SNAPSHOT: latest obs ${sn.latest}, downloaded ${sn.fetched_at||'unknown'}</span>`:'')+(c.live?`<span class="b live"><i class="dot"></i>${c.live} reef(s) LIVE</span>`:'');$('#upd').textContent='Updated '+new Date(D.updated*1000).toLocaleTimeString();
+$('#tb').innerHTML=D.sites.map(s=>`<tr class="s" data-i="${s.id}"><td>${s.rank}</td><td>${s.name}</td><td>${badge(s)}</td><td><div class="bar"><i style="width:${s.risk*100}%;background:${col(s.risk)}"></i></div>${(s.risk*100).toFixed(0)}% ${s.tier}</td><td>${s.obs.dhw}</td><td>${s.value}</td><td><b>${s.priority}</b></td></tr>`).join('');
+document.querySelectorAll('tr.s').forEach(r=>r.onclick=()=>detail(r.dataset.i));
+const R=D.report,I=D.inference;$('#gr').innerHTML=`<h3>Green AI</h3><p class="mut" style="font-size:12px">${R.label}<br>Split by site: ${R.split.train_sites.length} train / ${R.split.test_sites.length} held-out reefs.<br>Training data: ${R.training_data&&Object.keys(R.training_data).length?Object.entries(R.training_data).map(([k,v])=>v+' '+k).join(' / '):'unknown'}</p>
+<table><tr><th>Model</th><th>AUC</th><th>Acc</th><th>Params</th><th>FLOPs/s</th><th>Epochs</th><th>kWh</th><th>s</th></tr>${R.variants.map(v=>`<tr ${v.name===R.served?'style="color:var(--ok)"':''}><td>${v.name}${v.name===R.served?' ★':''}</td><td>${f(v.test_auc)}</td><td>${f(v.test_acc)}</td><td>${v.params}</td><td>${v.flops_per_sample}</td><td>${v.epochs_run}/${v.epochs_budget}</td><td>${v.energy_kwh==null?'n/a':v.energy_kwh.toExponential(1)}</td><td>${f(v.duration_s,2)}</td></tr>`).join('')}</table>
+<p class="mut" style="font-size:12px">★ = cheapest model within 0.01 AUC of best. Energy via ${R.variants[0].tracker}.</p>
+<b>Serving</b><p class="mut" style="font-size:12px">${I.calls} batched calls · ${I.samples} samples · ${I.total_flops.toExponential(2)} FLOPs · ${f(I.ms_per_call,3)} ms/call · est. ${I.est_energy_kwh.toExponential(1)} kWh (busy time × ${I.assumed_watts} W assumed)</p>`}
+function detail(id){const s=D.sites.find(x=>x.id===id);$('#det').innerHTML=`<h3>${s.name}</h3>${badge(s)} <span class="mut">${src(s)}</span>
+${s.error?`<p style="color:var(--warn);font-size:12px">${s.error}</p>`:''}<p>Risk <b style="color:${col(s.risk)}">${(s.risk*100).toFixed(0)}% (${s.tier})</b> · value ${s.value} · priority <b>${s.priority}</b> (#${s.rank})</p>
+<table>${Object.entries(s.obs).map(([k,v])=>`<tr><td class="mut">${k}</td><td>${v}</td></tr>`).join('')}</table><h3 style="margin-top:12px">Recommended actions</h3><ul>${s.actions.map(a=>`<li>${a}</li>`).join('')}</ul>`}
+const load=(u,o)=>fetch(u,o).then(r=>r.json());
+$('#rf').onclick=async()=>{const b=$('#rf');b.disabled=true;b.textContent='Refreshing…';try{const j=await load('/api/refresh',{method:'POST'});D=j;render();
+toast(j.ok?`Live data refreshed for all ${j.live} reefs.`:j.simulated?`Refresh incomplete: ${j.simulated} reef(s) SIMULATED, ${j.snapshot} from local snapshot. ${((j.errors[0]||{}).error||'').slice(0,160)}`:`Live pull failed for ${j.snapshot} reef(s): showing LOCAL SNAPSHOT instead. ${((j.errors[0]||{}).error||'').slice(0,160)}`,j.ok)}catch(e){toast('Refresh failed: '+e+' — still showing previous data',false)}b.disabled=false;b.textContent='Refresh live data'};
+let mo=null;try{mo=localStorage.getItem('mo')}catch(e){}
+function setMo(v){mo=v;if(v)document.documentElement.dataset.motion=v;else delete document.documentElement.dataset.motion;$('#mo').textContent='Reduce motion: '+(v==='off'?'ON':v==='on'?'OFF':'OS');try{v?localStorage.setItem('mo',v):localStorage.removeItem('mo')}catch(e){}}
+$('#mo').onclick=()=>setMo(mo==='off'?'on':mo==='on'?null:'off');setMo(mo);
+load('/api/state').then(j=>{D=j;render()}).catch(e=>toast('Could not load state: '+e,false));
+</script></body></html>
